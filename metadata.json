@@ -1,0 +1,5 @@
+{
+  "name": "Contextual Chatbot",
+  "description": "A mobile-first in-browser chatbot that responds based on user-provided context and automatically detects the user's language.",
+  "requestFramePermissions": []
+}

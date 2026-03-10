@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings, Code, LayoutTemplate, Volume2, Globe, ArrowLeft, Copy, Check, Bot, Trash2, Moon, Sun, Monitor, PlayCircle, Download, Languages } from 'lucide-react';
+import { Plus, Settings, Code, LayoutTemplate, Volume2, Globe, ArrowLeft, Copy, Check, Bot, Trash2, Moon, Sun, Monitor, PlayCircle, Download, Languages, RefreshCw } from 'lucide-react';
 import { ChatbotConfig } from './types';
 import ChatWidget from './components/ChatWidget';
 
@@ -10,6 +10,7 @@ export default function App() {
   });
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [previewKey, setPreviewKey] = useState(Date.now());
 
   const [dashboardTheme, setDashboardTheme] = useState<'light' | 'dark' | 'system'>(() => {
     return (localStorage.getItem('qwenbot_dashboard_theme') as any) || 'system';
@@ -353,9 +354,18 @@ export default function App() {
 
           {/* Right: Preview */}
           <div className="w-1/2 bg-zinc-100 dark:bg-zinc-950 relative overflow-hidden flex flex-col items-center justify-center transition-colors">
-            <div className="absolute top-6 left-6 bg-white dark:bg-zinc-800 px-4 py-2 rounded-full shadow-sm text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-2 transition-colors">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-              Live Preview
+            <div className="absolute top-6 left-6 flex items-center gap-3 z-10">
+              <div className="bg-white dark:bg-zinc-800 px-4 py-2 rounded-full shadow-sm text-sm font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-2 transition-colors">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                Live Preview
+              </div>
+              <button 
+                onClick={() => setPreviewKey(Date.now())}
+                className="bg-white dark:bg-zinc-800 px-3 py-2 rounded-full shadow-sm text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-2"
+                title="Restart Chat"
+              >
+                <RefreshCw size={14} /> Reset Chat
+              </button>
             </div>
             
             {/* Mock Website Background */}
@@ -383,7 +393,7 @@ export default function App() {
             </div>
 
             {/* The actual Chat Widget Preview */}
-            <ChatWidget config={currentBot} />
+            <ChatWidget key={previewKey} config={currentBot} />
           </div>
         </div>
       </div>

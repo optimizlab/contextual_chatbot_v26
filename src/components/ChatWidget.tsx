@@ -49,16 +49,26 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
-  const [initProgress, setInitProgress] = useState("");
+  const [progressData, setProgressData] = useState<any>(null);
   const [initError, setInitError] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const getGreeting = (lang: string) => {
+    switch (lang) {
+      case 'French': return 'Bonjour ! Comment puis-je vous aider aujourd\'hui ?';
+      case 'Spanish': return '¡Hola! ¿Cómo puedo ayudarte hoy?';
+      case 'German': return 'Hallo! Wie kann ich Ihnen heute helfen?';
+      case 'Arabic': return 'مرحباً! كيف يمكنني مساعدتك اليوم؟';
+      default: return 'Hello! How can I help you today?';
+    }
+  };
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'model',
-      text: 'Hello! How can I help you today?'
+      text: getGreeting(config.language)
     }
   ]);
   const [input, setInput] = useState('');
@@ -92,15 +102,7 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
     workerRef.current.onmessage = (e) => {
       const { type, data, error, text } = e.data;
       if (type === 'progress') {
-        if (data.status === 'downloading') {
-          setInitProgress(`Downloading ${data.file}... ${Math.round(data.progress || 0)}%`);
-        } else if (data.status === 'loading') {
-          setInitProgress(`Loading model into memory...`);
-        } else if (data.status === 'ready') {
-          setInitProgress(`Ready!`);
-        } else if (data.status === 'init') {
-          setInitProgress(`Initializing...`);
-        }
+        setProgressData(data);
       } else if (type === 'ready') {
         setIsReady(true);
         setIsInitializing(false);
@@ -136,6 +138,12 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
       initializeEngine();
     }
   }, [config.engineStartMode, isReady, isInitializing, initError]);
+
+  useEffect(() => {
+    if (isOpen && config.engineStartMode === 'click' && !isReady && !isInitializing && !initError) {
+      initializeEngine();
+    }
+  }, [isOpen, config.engineStartMode, isReady, isInitializing, initError]);
 
   const handleSend = () => {
     if (!input.trim() || isLoading || !isReady) return;
@@ -240,14 +248,52 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                 )}
 
                 {isInitializing ? (
-                  <div className="w-full space-y-3">
-                    <div className="flex items-center justify-center gap-2 text-sm font-medium" style={{ color: config.themeColor }}>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Loading...</span>
+                  <div className="w-full space-y-4 bg-white dark:bg-zinc-800 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                    <div className="flex items-center justify-between text-sm font-medium" style={{ color: config.themeColor }}>
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>{progressData?.status === 'downloading' ? 'Downloading Model...' : 'Initializing...'}</span>
+                      </div>
+                      {progressData?.progress !== undefined && progressData?.status === 'downloading' && (
+                        <span className="text-xs font-bold">{Math.round(progressData.progress)}%</span>
+                      )}
                     </div>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800 p-2 rounded-lg break-words text-left h-16 overflow-y-auto border border-zinc-200 dark:border-zinc-700">
-                      {initProgress || "Initializing..."}
-                    </p>
+                    
+                    {progressData?.status === 'downloading' ? (
+                      <>
+                        <div className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="h-full transition-all duration-300 ease-out"
+                            style={{ width: `${progressData.progress || 0}%`, backgroundColor: config.themeColor }}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+                          <div className="flex flex-col">
+                            <span className="uppercase tracking-wider opacity-70">File</span>
+                            <span className="truncate" title={progressData.file}>{progressData.file || '...'}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="uppercase tracking-wider opacity-70">Speed</span>
+                            <span>{progressData.speed ? `${(progressData.speed / 1024 / 1024).toFixed(1)} MB/s` : 'Calculating...'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="uppercase tracking-wider opacity-70">Model</span>
+                            <span className="truncate" title={progressData.name}>{progressData.name || 'Qwen2.5-0.5B'}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="uppercase tracking-wider opacity-70">ETA</span>
+                            <span>{progressData.eta ? `${Math.ceil(progressData.eta)}s` : '--'}</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg break-words text-left border border-zinc-100 dark:border-zinc-800">
+                        {progressData?.status === 'loading' ? 'Loading model into memory...' : 
+                         progressData?.status === 'ready' ? 'Ready!' : 
+                         progressData?.status === 'init' ? 'Initializing WebGPU/WASM...' : 'Preparing engine...'}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -256,7 +302,7 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                     style={{ backgroundColor: config.themeColor }}
                   >
                     <Download size={18} />
-                    Start Engine
+                    {initError ? 'Retry Download' : 'Start Engine'}
                   </button>
                 )}
               </div>
@@ -303,9 +349,13 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                           <div className="w-7 h-7 rounded-full text-white flex items-center justify-center mt-1 shadow-sm" style={{ backgroundColor: config.themeColor }}>
                             {renderIcon(14)}
                           </div>
-                          <div className="px-3 py-2 rounded-2xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-tl-sm shadow-sm flex items-center gap-2">
-                            <Loader2 size={14} className="animate-spin" style={{ color: config.themeColor }} />
-                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Thinking...</span>
+                          <div className="px-4 py-3 rounded-2xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-tl-sm shadow-sm flex items-center gap-2">
+                            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Thinking</span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="w-1 h-1 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                              <span className="w-1 h-1 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                              <span className="w-1 h-1 bg-zinc-400 dark:bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                            </div>
                           </div>
                         </div>
                       </motion.div>

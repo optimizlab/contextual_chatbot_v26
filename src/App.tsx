@@ -3,6 +3,40 @@ import { Send, Settings, X, Bot, User, Loader2, Sparkles, Download, AlertCircle,
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 
+const playSound = (type: 'send' | 'receive') => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'send') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(500, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.1);
+    } else {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    }
+  } catch (e) {
+    console.error("Audio play failed", e);
+  }
+};
+
 type Message = {
   id: string;
   role: 'user' | 'model';
@@ -61,6 +95,7 @@ export default function App() {
         setIsInitializing(false);
         setIsLoading(false);
       } else if (type === 'complete') {
+        playSound('receive');
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'model',
@@ -83,6 +118,8 @@ export default function App() {
 
   const handleSend = () => {
     if (!input.trim() || isLoading || !isReady) return;
+
+    playSound('send');
 
     const userMessage: Message = { id: Date.now().toString(), role: 'user', text: input.trim() };
     setMessages(prev => [...prev, userMessage]);
@@ -130,11 +167,15 @@ export default function App() {
         <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6 shadow-sm">
           <Sparkles size={36} />
         </div>
-        <h1 className="text-2xl font-bold text-zinc-900 mb-3">Qwen 0.5B (ONNX)</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 mb-3">Qwen 2.5 (ONNX)</h1>
         <p className="text-zinc-600 mb-8 text-[15px] leading-relaxed max-w-sm">
           This chatbot runs entirely in your browser using ONNX and WebGPU. 
           <br/><br/>
-          It uses the ultra-lightweight Qwen1.5-0.5B-Chat model (~350MB), making it perfect for mobile devices with limited memory.
+          It uses the ultra-lightweight Qwen2.5-0.5B-Instruct model (~350MB).
+          <br/><br/>
+          <span className="text-emerald-600 font-medium">
+            ⚡ Note: The first load takes time to download the model. Subsequent loads are instant from your browser's cache!
+          </span>
         </p>
 
         {initError ? (
@@ -252,8 +293,9 @@ export default function App() {
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
+            disabled={isLoading || !isReady}
             placeholder="Message QwenBot..."
-            className="flex-1 bg-transparent border-none focus:ring-0 resize-none py-2.5 text-[15px] leading-tight text-zinc-900 placeholder:text-zinc-500 outline-none"
+            className="flex-1 bg-transparent border-none focus:ring-0 resize-none py-2.5 text-[15px] leading-tight text-zinc-900 placeholder:text-zinc-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             rows={1}
             style={{ minHeight: '44px', maxHeight: '120px' }}
           />

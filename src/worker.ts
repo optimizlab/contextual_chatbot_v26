@@ -3,6 +3,11 @@ import { pipeline, env } from '@huggingface/transformers';
 // Disable local models to force downloading from the Hugging Face Hub
 env.allowLocalModels = false;
 
+// Optimize WASM threads in case WebGPU is not supported
+if (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) {
+  env.backends.onnx.wasm.numThreads = Math.min(navigator.hardwareConcurrency, 4);
+}
+
 let generator: any = null;
 
 self.onmessage = async (e) => {
@@ -10,9 +15,9 @@ self.onmessage = async (e) => {
 
   if (type === 'init') {
     try {
-      // Using Xenova/Qwen1.5-0.5B-Chat which is a highly capable and small chat model (~350MB)
-      // It is guaranteed to exist and work with Transformers.js
-      generator = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', {
+      // Using onnx-community/Qwen2.5-0.5B-Instruct which is a highly capable and small chat model (~350MB)
+      // Qwen2.5 is significantly better at instruction following and roleplay than Qwen1.5
+      generator = await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
         dtype: 'q4',
         device: 'webgpu',
         progress_callback: (data: any) => {
@@ -24,7 +29,7 @@ self.onmessage = async (e) => {
       console.warn("WebGPU failed, falling back to WASM", err);
       try {
         // Fallback to WASM if WebGPU is not available
-        generator = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', {
+        generator = await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
           dtype: 'q4',
           device: 'wasm',
           progress_callback: (data: any) => {
@@ -40,8 +45,7 @@ self.onmessage = async (e) => {
     try {
       const result = await generator(messages, {
         max_new_tokens: 256,
-        temperature: 0.7,
-        do_sample: true,
+        do_sample: false, // Greedy decoding for strict instruction following
       });
       
       // Extract just the last assistant message from the chat template output

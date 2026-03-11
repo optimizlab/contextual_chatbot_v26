@@ -56,13 +56,13 @@ const handleProgress = (data: any) => {
 };
 
 self.onmessage = async (e) => {
-  const { type, messages } = e.data;
+  const { type, messages, modelId } = e.data;
 
   if (type === 'init') {
     try {
-      // Using onnx-community/Qwen2.5-0.5B-Instruct which is a highly capable and small chat model (~350MB)
-      // Qwen2.5 is significantly better at instruction following and roleplay than Qwen1.5
-      generator = await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
+      const targetModel = modelId || 'onnx-community/Qwen2.5-0.5B-Instruct';
+      // Using the selected model
+      generator = await pipeline('text-generation', targetModel, {
         dtype: 'q4',
         device: 'webgpu',
         progress_callback: handleProgress
@@ -71,8 +71,9 @@ self.onmessage = async (e) => {
     } catch (err: any) {
       console.warn("WebGPU failed, falling back to WASM", err);
       try {
+        const targetModel = modelId || 'onnx-community/Qwen2.5-0.5B-Instruct';
         // Fallback to WASM if WebGPU is not available
-        generator = await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
+        generator = await pipeline('text-generation', targetModel, {
           dtype: 'q4',
           device: 'wasm',
           progress_callback: handleProgress

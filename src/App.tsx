@@ -1,7 +1,45 @@
 import { useState, useEffect } from 'react';
-import { Plus, Settings, Code, LayoutTemplate, Volume2, Globe, ArrowLeft, Copy, Check, Bot, Trash2, Moon, Sun, Monitor, PlayCircle, Download, Languages, RefreshCw } from 'lucide-react';
+import { Plus, Settings, Code, LayoutTemplate, Volume2, Globe, ArrowLeft, Copy, Check, Bot, Trash2, Moon, Sun, Monitor, PlayCircle, Download, Languages, RefreshCw, Smartphone, Tablet, X } from 'lucide-react';
 import { ChatbotConfig } from './types';
 import ChatWidget from './components/ChatWidget';
+
+const MODEL_INFO: Record<string, { size: string; description: string }> = {
+  'onnx-community/Qwen2.5-0.5B-Instruct': {
+    size: '~350 MB',
+    description: 'Fast and highly capable base model. Excellent at instruction following and roleplay.'
+  },
+  'onnx-community/SmolLM2-135M-Instruct': {
+    size: '~135 MB',
+    description: 'Ultra-lightweight model optimized for mobile devices and fast web loading.'
+  },
+  'onnx-community/SmolLM2-360M-Instruct': {
+    size: '~360 MB',
+    description: 'Lightweight and fast, offering a good balance of speed and conversational ability for web.'
+  },
+  'Xenova/TinyLlama-1.1B-Chat-v1.0': {
+    size: '~650 MB',
+    description: 'Suitable for general chat, reasoning, and basic assistance.'
+  },
+  'onnx-community/Llama-3.2-1B-Instruct': {
+    size: '~850 MB',
+    description: 'High-quality text generation and summarization. Slower to download but very capable.'
+  },
+  'Xenova/Phi-3-mini-4k-instruct': {
+    size: '~2.3 GB',
+    description: 'Advanced model suitable for complex logic and coding tasks. Very heavy for web browsers.'
+  },
+  'Xenova/Qwen1.5-0.5B-Chat': {
+    size: '~350 MB',
+    description: 'Legacy Qwen model. Replaced by Qwen 2.5.'
+  }
+};
+
+const PROMPT_TEMPLATES = [
+  { label: 'General Assistant', value: 'You are a helpful AI assistant. Be polite and concise.' },
+  { label: 'Customer Support (KOLO)', value: 'You are a helpful customer support assistant for our company. Be polite and concise. your name is (KOLO), Your phone namber is (+3338). Your website is (www.mango.com). Your email is (dani@fgx.com).' },
+  { label: 'Sales Representative', value: 'You are a friendly sales representative. Your goal is to help customers find the right products and answer questions about pricing and features.' },
+  { label: 'Technical Support', value: 'You are a technical support engineer. Provide step-by-step troubleshooting, ask clarifying questions, and be patient.' },
+];
 
 export default function App() {
   const [bots, setBots] = useState<ChatbotConfig[]>(() => {
@@ -10,7 +48,9 @@ export default function App() {
   });
   const [editingBotId, setEditingBotId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
   const [previewKey, setPreviewKey] = useState(Date.now());
+  const [previewSize, setPreviewSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
   const [dashboardTheme, setDashboardTheme] = useState<'light' | 'dark' | 'system'>(() => {
     return (localStorage.getItem('qwenbot_dashboard_theme') as any) || 'system';
@@ -38,7 +78,7 @@ export default function App() {
       id: Date.now().toString(),
       name: 'New Chatbot',
       domain: 'example.com',
-      systemPrompt: 'You are a helpful customer support assistant for our company. Be polite and concise.',
+      systemPrompt: PROMPT_TEMPLATES[0].value,
       themeColor: '#4f46e5', // Indigo 600
       soundEnabled: true,
       createdAt: Date.now(),
@@ -49,6 +89,7 @@ export default function App() {
       fontColor: '',
       fontSize: 'text-sm',
       language: 'auto',
+      modelId: 'onnx-community/Qwen2.5-0.5B-Instruct',
     };
     setBots([newBot, ...bots]);
     setEditingBotId(newBot.id);
@@ -71,6 +112,7 @@ export default function App() {
     fontColor: '',
     fontSize: 'text-sm',
     language: 'auto',
+    modelId: 'onnx-community/Qwen2.5-0.5B-Instruct',
     ...editingBot
   } as ChatbotConfig : null;
 
@@ -80,6 +122,10 @@ export default function App() {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const openEmbedModal = () => {
+    setIsEmbedModalOpen(true);
   };
 
   if (editingBotId && currentBot) {
@@ -103,11 +149,11 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <button 
-              onClick={copyEmbedCode}
+              onClick={openEmbedModal}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
             >
-              {copied ? <Check size={16} /> : <Code size={16} />}
-              {copied ? 'Copied!' : 'Copy Embed Code'}
+              <Code size={16} />
+              Get Embed Code
             </button>
           </div>
         </header>
@@ -156,7 +202,24 @@ export default function App() {
                 </h2>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">System Instructions</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">System Instructions</label>
+                      <select
+                        className="text-xs bg-zinc-100 dark:bg-zinc-800 border-none rounded px-2 py-1 text-zinc-600 dark:text-zinc-300 outline-none cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            updateBot(currentBot.id, { systemPrompt: e.target.value });
+                            setPreviewKey(Date.now());
+                          }
+                        }}
+                        value=""
+                      >
+                        <option value="" disabled>Load a template...</option>
+                        {PROMPT_TEMPLATES.map((t, i) => (
+                          <option key={i} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">Define the bot's persona, knowledge, and rules.</p>
                     <textarea 
                       value={currentBot.systemPrompt}
@@ -172,13 +235,54 @@ export default function App() {
                       onChange={(e) => updateBot(currentBot.id, { language: e.target.value })}
                       className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     >
-                      <option value="auto">Auto-detect</option>
-                      <option value="English">English</option>
-                      <option value="French">French</option>
-                      <option value="Spanish">Spanish</option>
-                      <option value="German">German</option>
-                      <option value="Arabic">Arabic</option>
+                      <option value="auto">Detect User Language (Auto)</option>
+                      <option value="English">Strictly English</option>
+                      <option value="French">Strictly French</option>
+                      <option value="Spanish">Strictly Spanish</option>
+                      <option value="German">Strictly German</option>
+                      <option value="Arabic">Strictly Arabic</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-2"><Bot size={16}/> AI Model</label>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">Select the underlying model. Larger models are smarter but slower to download.</p>
+                    <select 
+                      value={currentBot.modelId}
+                      onChange={(e) => {
+                        updateBot(currentBot.id, { modelId: e.target.value });
+                        setPreviewKey(Date.now()); // Restart chat to load new model
+                      }}
+                      className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      <optgroup label="Recommended (Balanced)">
+                        <option value="onnx-community/Qwen2.5-0.5B-Instruct">Qwen 2.5 0.5B (Default - Fast & Capable)</option>
+                      </optgroup>
+                      <optgroup label="Mobile & Web Optimized (Smallest)">
+                        <option value="onnx-community/SmolLM2-135M-Instruct">SmolLM2 135M (Ultra-Light - Best for Mobile)</option>
+                        <option value="onnx-community/SmolLM2-360M-Instruct">SmolLM2 360M (Lightweight - Fast)</option>
+                      </optgroup>
+                      <optgroup label="Larger Models (Slower Download)">
+                        <option value="Xenova/TinyLlama-1.1B-Chat-v1.0">TinyLlama 1.1B (Suitable for general chat & reasoning)</option>
+                        <option value="onnx-community/Llama-3.2-1B-Instruct">Llama 3.2 1B (Suitable for high-quality text & summarization)</option>
+                        <option value="Xenova/Phi-3-mini-4k-instruct">Phi-3 Mini (Suitable for complex logic & coding - Heavy)</option>
+                      </optgroup>
+                      <optgroup label="Legacy">
+                        <option value="Xenova/Qwen1.5-0.5B-Chat">Qwen 1.5 0.5B (Legacy)</option>
+                      </optgroup>
+                    </select>
+                    {currentBot.modelId && MODEL_INFO[currentBot.modelId] && (
+                      <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Model Details</span>
+                          <span className="text-xs font-mono bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-zinc-600 dark:text-zinc-300">
+                            {MODEL_INFO[currentBot.modelId].size}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                          {MODEL_INFO[currentBot.modelId].description}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -259,11 +363,11 @@ export default function App() {
                       <select 
                         value={currentBot.fontSize}
                         onChange={(e) => updateBot(currentBot.id, { fontSize: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        className={`w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${currentBot.fontSize}`}
                       >
-                        <option value="text-sm">Small</option>
-                        <option value="text-base">Medium</option>
-                        <option value="text-lg">Large</option>
+                        <option value="text-sm" className="text-sm">Small</option>
+                        <option value="text-base" className="text-base">Medium</option>
+                        <option value="text-lg" className="text-lg">Large</option>
                       </select>
                     </div>
                   </div>
@@ -367,35 +471,110 @@ export default function App() {
                 <RefreshCw size={14} /> Reset Chat
               </button>
             </div>
+
+            {/* Device Toggle */}
+            <div className="absolute top-6 right-6 flex items-center gap-1 bg-white dark:bg-zinc-800 p-1 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-700 z-10">
+              <button 
+                onClick={() => setPreviewSize('mobile')}
+                className={`p-2 rounded-full transition-colors ${previewSize === 'mobile' ? 'bg-zinc-100 dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'}`}
+                title="Mobile View"
+              >
+                <Smartphone size={16} />
+              </button>
+              <button 
+                onClick={() => setPreviewSize('tablet')}
+                className={`p-2 rounded-full transition-colors ${previewSize === 'tablet' ? 'bg-zinc-100 dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'}`}
+                title="Tablet View"
+              >
+                <Tablet size={16} />
+              </button>
+              <button 
+                onClick={() => setPreviewSize('desktop')}
+                className={`p-2 rounded-full transition-colors ${previewSize === 'desktop' ? 'bg-zinc-100 dark:bg-zinc-700 text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'}`}
+                title="Desktop View"
+              >
+                <Monitor size={16} />
+              </button>
+            </div>
             
-            {/* Mock Website Background */}
-            <div className="w-[80%] h-[80%] bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col transition-colors">
-              <div className="h-12 border-b border-zinc-100 dark:border-zinc-800 flex items-center px-4 gap-2">
+            {/* Device Container */}
+            <div className={`relative bg-white dark:bg-zinc-900 shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col transition-all duration-300 transform-gpu ${
+              previewSize === 'mobile' ? 'w-[375px] h-[812px] rounded-[3rem] border-8 border-zinc-800 dark:border-zinc-950 scale-[0.85] origin-center' :
+              previewSize === 'tablet' ? 'w-[768px] h-[1024px] rounded-[2rem] border-8 border-zinc-800 dark:border-zinc-950 scale-[0.75] origin-center' :
+              'w-[80%] h-[80%] rounded-2xl'
+            }`}>
+              {/* Mock Website Background */}
+              <div className="h-12 border-b border-zinc-100 dark:border-zinc-800 flex items-center px-4 gap-2 flex-shrink-0">
                 <div className="w-3 h-3 rounded-full bg-red-400"></div>
                 <div className="w-3 h-3 rounded-full bg-amber-400"></div>
                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <div className="ml-4 bg-zinc-100 dark:bg-zinc-800 h-6 rounded-md flex-1 max-w-sm flex items-center px-3 text-xs text-zinc-400 dark:text-zinc-500 font-mono">
+                <div className="ml-4 bg-zinc-100 dark:bg-zinc-800 h-6 rounded-md flex-1 max-w-sm flex items-center px-3 text-xs text-zinc-400 dark:text-zinc-500 font-mono overflow-hidden whitespace-nowrap text-ellipsis">
                   https://{currentBot.domain}
                 </div>
               </div>
-              <div className="flex-1 p-8">
+              <div className="flex-1 p-8 overflow-y-auto">
                 <div className="w-1/3 h-8 bg-zinc-100 dark:bg-zinc-800 rounded-lg mb-6"></div>
                 <div className="w-full h-4 bg-zinc-50 dark:bg-zinc-800/50 rounded mb-3"></div>
                 <div className="w-5/6 h-4 bg-zinc-50 dark:bg-zinc-800/50 rounded mb-3"></div>
                 <div className="w-4/6 h-4 bg-zinc-50 dark:bg-zinc-800/50 rounded mb-8"></div>
                 
-                <div className="grid grid-cols-3 gap-6">
+                <div className={`grid gap-6 ${previewSize === 'mobile' ? 'grid-cols-1' : 'grid-cols-3'}`}>
                   <div className="h-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl"></div>
                   <div className="h-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl"></div>
                   <div className="h-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl"></div>
                 </div>
               </div>
-            </div>
 
-            {/* The actual Chat Widget Preview */}
-            <ChatWidget key={previewKey} config={currentBot} />
+              {/* The actual Chat Widget Preview */}
+              <ChatWidget key={previewKey} config={currentBot} />
+            </div>
           </div>
         </div>
+
+        {/* Embed Code Modal */}
+        {isEmbedModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <Code size={20} className="text-indigo-500" />
+                  Embed Chatbot
+                </h3>
+                <button 
+                  onClick={() => setIsEmbedModalOpen(false)}
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+                  Copy and paste this snippet into the <code>&lt;head&gt;</code> of your website to add the chatbot.
+                </p>
+                <div className="relative">
+                  <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-xl text-sm overflow-x-auto font-mono border border-zinc-800">
+                    <code>{`<script src="https://cdn.qwenbot.ai/widget.js" data-bot-id="${currentBot.id}"></script>`}</code>
+                  </pre>
+                  <button 
+                    onClick={copyEmbedCode}
+                    className="absolute top-3 right-3 p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors backdrop-blur-md"
+                    title="Copy to clipboard"
+                  >
+                    {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                  </button>
+                </div>
+                <div className="mt-6 flex justify-end">
+                  <button 
+                    onClick={() => setIsEmbedModalOpen(false)}
+                    className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

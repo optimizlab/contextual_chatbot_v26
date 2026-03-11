@@ -13,4 +13,5 @@ export type ChatbotConfig = {
   fontColor: string;
   fontSize: 'text-sm' | 'text-base' | 'text-lg';
   language: string;
+  modelId: string;
 };

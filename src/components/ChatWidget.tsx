@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, Download, MessageSquare, X } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Download, MessageSquare, X, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { ChatbotConfig } from '../types';
@@ -45,6 +45,18 @@ type Message = {
   text: string;
 };
 
+const formatETA = (seconds: number) => {
+  if (!seconds || seconds === Infinity) return '--';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+};
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0 MB';
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
 export default function ChatWidget({ config }: { config: ChatbotConfig }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -53,7 +65,7 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
   const [initError, setInitError] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
-
+  
   const getGreeting = (lang: string) => {
     switch (lang) {
       case 'French': return 'Bonjour ! Comment puis-je vous aider aujourd\'hui ?';
@@ -112,10 +124,13 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
         setIsLoading(false);
       } else if (type === 'complete') {
         playSound('receive', config.soundEnabled);
+        
+        let responseText = text || "I'm sorry, I couldn't generate a response.";
+
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'model',
-          text: text || "I'm sorry, I couldn't generate a response."
+          text: responseText
         }]);
         setIsLoading(false);
       }
@@ -193,6 +208,16 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
     }
   };
 
+  const handleClearChat = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        role: 'model',
+        text: getGreeting(config.language)
+      }
+    ]);
+  };
+
   const renderIcon = (size: number) => {
     if (!config.botIcon) return <Bot size={size} />;
     if (config.botIcon.startsWith('http')) return <img src={config.botIcon} alt="Bot" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />;
@@ -227,12 +252,23 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-1">
+                {messages.length > 1 && (
+                  <button 
+                    onClick={handleClearChat}
+                    className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-colors"
+                    title="Clear Chat"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </header>
 
             {/* Chat Area */}
@@ -257,38 +293,40 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                     <div className="flex items-center justify-between text-sm font-medium" style={{ color: config.themeColor }}>
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin" />
-                        <span>{progressData?.status === 'downloading' ? 'Downloading Model...' : 'Initializing...'}</span>
+                        <span>{progressData?.status === 'progress' ? 'Downloading Model...' : 'Initializing...'}</span>
                       </div>
-                      {progressData?.progress !== undefined && progressData?.status === 'downloading' && (
+                      {progressData?.overallTotal ? (
+                        <span className="text-xs font-bold">{Math.round((progressData.overallLoaded / progressData.overallTotal) * 100)}%</span>
+                      ) : progressData?.progress !== undefined && progressData?.status === 'progress' && (
                         <span className="text-xs font-bold">{Math.round(progressData.progress)}%</span>
                       )}
                     </div>
                     
-                    {progressData?.status === 'downloading' ? (
+                    {progressData?.status === 'progress' ? (
                       <>
                         <div className="w-full bg-zinc-100 dark:bg-zinc-900 rounded-full h-2 overflow-hidden">
                           <div 
                             className="h-full transition-all duration-300 ease-out"
-                            style={{ width: `${progressData.progress || 0}%`, backgroundColor: config.themeColor }}
+                            style={{ width: `${progressData.overallTotal ? (progressData.overallLoaded / progressData.overallTotal) * 100 : (progressData.progress || 0)}%`, backgroundColor: config.themeColor }}
                           />
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
                           <div className="flex flex-col">
-                            <span className="uppercase tracking-wider opacity-70">File</span>
-                            <span className="truncate" title={progressData.file}>{progressData.file || '...'}</span>
+                            <span className="uppercase tracking-wider opacity-70">Downloaded</span>
+                            <span className="truncate">{formatBytes(progressData.overallLoaded)} / {formatBytes(progressData.overallTotal)}</span>
                           </div>
                           <div className="flex flex-col items-end">
                             <span className="uppercase tracking-wider opacity-70">Speed</span>
                             <span>{progressData.speed ? `${(progressData.speed / 1024 / 1024).toFixed(1)} MB/s` : 'Calculating...'}</span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="uppercase tracking-wider opacity-70">Model</span>
-                            <span className="truncate" title={progressData.name}>{progressData.name || 'Qwen2.5-0.5B'}</span>
+                            <span className="uppercase tracking-wider opacity-70">File</span>
+                            <span className="truncate" title={progressData.file}>{progressData.file || '...'}</span>
                           </div>
                           <div className="flex flex-col items-end">
-                            <span className="uppercase tracking-wider opacity-70">ETA</span>
-                            <span>{progressData.eta ? `${Math.ceil(progressData.eta)}s` : '--'}</span>
+                            <span className="uppercase tracking-wider opacity-70">Time Remaining</span>
+                            <span>{formatETA(progressData.eta)}</span>
                           </div>
                         </div>
                       </>
@@ -330,13 +368,13 @@ export default function ChatWidget({ config }: { config: ChatbotConfig }) {
                           </div>
                           <div className={`px-3 py-2 rounded-2xl ${config.fontSize} ${
                             msg.role === 'user' 
-                              ? 'text-white rounded-tr-sm shadow-sm' 
-                              : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-tl-sm shadow-sm'
-                          }`} style={msg.role === 'user' ? { backgroundColor: config.themeColor } : { color: config.fontColor || undefined }}>
+                              ? 'rounded-tr-sm shadow-sm' 
+                              : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-tl-sm shadow-sm'
+                          }`} style={msg.role === 'user' ? { backgroundColor: config.themeColor, color: config.fontColor || '#ffffff' } : { color: config.fontColor || undefined }}>
                             {msg.role === 'user' ? (
                               <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                             ) : (
-                              <div className="markdown-body prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-900 prose-pre:text-zinc-800 dark:prose-pre:text-zinc-200" style={{ color: config.fontColor || undefined }}>
+                              <div className="markdown-body prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-900" style={{ color: config.fontColor || undefined }}>
                                 <Markdown>{msg.text}</Markdown>
                               </div>
                             )}

@@ -439,18 +439,14 @@ export default function App() {
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
                   <Code size={18} className="text-zinc-400" /> Integration
                 </h2>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">Copy and paste this snippet into the <code>&lt;head&gt;</code> of your website.</p>
-                <div className="relative">
-                  <pre className="bg-zinc-900 text-zinc-300 p-4 rounded-xl text-sm overflow-x-auto font-mono">
-                    <code>{`<script src="https://cdn.qwenbot.ai/widget.js" data-bot-id="${currentBot.id}"></script>`}</code>
-                  </pre>
-                  <button 
-                    onClick={copyEmbedCode}
-                    className="absolute top-3 right-3 p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
-                </div>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Get the snippet to add this chatbot to your website.</p>
+                <button 
+                  onClick={openEmbedModal}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-xl text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors border border-zinc-200 dark:border-zinc-700"
+                >
+                  <Code size={18} />
+                  Show Embed Code
+                </button>
               </section>
 
             </div>

@@ -17,7 +17,7 @@ let currentSpeed = 0;
 let currentEta = 0;
 
 const handleProgress = (data: any) => {
-  if (data.status === 'downloading') {
+  if (data.status === 'progress') {
     fileProgress.set(data.file, { loaded: data.loaded, total: data.total });
     
     let totalLoaded = 0;
